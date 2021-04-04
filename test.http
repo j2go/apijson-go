@@ -1,0 +1,19 @@
+POST 127.0.0.1:8000/get
+Content-Type: application/json
+
+{
+  "Document": {
+    "id": 1
+  }
+}
+
+###
+
+POST 127.0.0.1:8000/get
+Content-Type: application/json
+
+{
+  "document": {
+    "name": "TommyLemon"
+  }
+}
