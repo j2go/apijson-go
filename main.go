@@ -2,13 +2,15 @@ package main
 
 import (
 	"bytes"
+	"database/sql"
 	"encoding/json"
-	_ "github.com/go-sql-driver/mysql"
-	"github.com/jmoiron/sqlx"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"strings"
+
+	_ "github.com/go-sql-driver/mysql"
+	"github.com/jmoiron/sqlx"
 )
 
 var db *sqlx.DB
@@ -24,6 +26,17 @@ func init() {
 		log.Fatal("db connect error", err)
 	}
 	db = database
+}
+
+type Account struct {
+	Id            int64          `db:"id"`
+	Sex           int8           `db:"sex"`
+	Name          string         `db:"name"`
+	Tag           sql.NullString `db:"tag"`
+	Head          sql.NullString `db:"head"`
+	ContactIdList sql.NullString `db:"contactIdList"`
+	PictureList   sql.NullString `db:"pictureList"`
+	Date          string         `db:"date"`
 }
 
 func GetHandler(w http.ResponseWriter, r *http.Request) {
@@ -74,31 +87,11 @@ func QueryTable(table string, fields interface{}) interface{} {
 		}
 		buffer.WriteString(strings.Join(cols, " and "))
 		sql := buffer.String()
-		if rows, err := db.Query(sql, values...); err != nil {
-			return err.Error()
-		} else {
-			if rows.Next() {
-				if columns, err := rows.Columns(); err != nil {
-					return "get rows error: " + err.Error()
-				} else {
-					values := make([]interface{}, len(columns))
-					for k := range columns {
-						str := ""
-						values[k] = &str
-					}
-					err = rows.Scan(values...)
-					if err != nil {
-						return "rows.Scan error: " + err.Error()
-					}
-					resultMap := make(map[string]interface{})
-					for k, colName := range columns {
-						resultMap[colName] = values[k]
-					}
-					return resultMap
-				}
-			} else {
-				return ""
-			}
+		account := Account{}
+		err := db.Get(&account, sql, values...)
+		if err != nil {
+			return "db.Get error: " + err.Error()
 		}
+		return account
 	}
 }
