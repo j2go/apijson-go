@@ -17,7 +17,10 @@ var db *sqlx.DB
 
 func main() {
 	http.HandleFunc("/get", GetHandler)
-	http.ListenAndServe("127.0.0.1:8000", nil)
+	err := http.ListenAndServe("127.0.0.1:8000", nil)
+	if err != nil {
+		log.Fatal(err)
+	}
 }
 
 func init() {
@@ -61,7 +64,10 @@ func GetHandler(w http.ResponseWriter, r *http.Request) {
 			w.WriteHeader(http.StatusInternalServerError)
 		} else {
 			w.WriteHeader(http.StatusOK)
-			w.Write(respBody)
+			_, err := w.Write(respBody)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+			}
 		}
 	}
 }
