@@ -2,18 +2,14 @@ package main
 
 import (
 	"bytes"
-	"database/sql"
 	"encoding/json"
+	"fmt"
+	"github.com/keepfoo/apijson/db"
 	"io/ioutil"
 	"log"
 	"net/http"
 	"strings"
-
-	_ "github.com/go-sql-driver/mysql"
-	"github.com/jmoiron/sqlx"
 )
-
-var db *sqlx.DB
 
 func main() {
 	http.HandleFunc("/get", GetHandler)
@@ -23,32 +19,14 @@ func main() {
 	}
 }
 
-func init() {
-	database, err := sqlx.Open("mysql", "apijson:1234qqqq@tcp(y.tadev.cn:53306)/sys")
-	if err != nil {
-		log.Fatal("db connect error", err)
-	}
-	db = database
-}
-
-type Account struct {
-	Id            int64          `db:"id"`
-	Sex           int8           `db:"sex"`
-	Name          string         `db:"name"`
-	Tag           sql.NullString `db:"tag"`
-	Head          sql.NullString `db:"head"`
-	ContactIdList sql.NullString `db:"contactIdList"`
-	PictureList   sql.NullString `db:"pictureList"`
-	Date          string         `db:"date"`
-}
-
 func GetHandler(w http.ResponseWriter, r *http.Request) {
 	if data, err := ioutil.ReadAll(r.Body); err != nil {
 		log.Println("read request body error", err)
 		w.WriteHeader(http.StatusBadRequest)
+		return
 	} else {
 		var bodyMap map[string]interface{}
-		if err := json.Unmarshal(data, &bodyMap); err != nil {
+		if err = json.Unmarshal(data, &bodyMap); err != nil {
 			log.Println("parse request body json error", err)
 			w.WriteHeader(http.StatusBadRequest)
 			return
@@ -56,7 +34,17 @@ func GetHandler(w http.ResponseWriter, r *http.Request) {
 		respMap := make(map[string]interface{})
 		for table, fields := range bodyMap {
 			if fields != nil {
-				respMap[table] = QueryTable(table, fields)
+				var records []map[string]interface{}
+				if records, err = QueryTable(table, fields); err != nil {
+					w.WriteHeader(http.StatusBadRequest)
+					respMap[table] = err.Error()
+				} else {
+					if returnArray(table) {
+						respMap[table] = records
+					} else {
+						respMap[table] = records[0]
+					}
+				}
 			}
 			log.Println("get:query table: ", table, ", fields: ", fields)
 		}
@@ -72,13 +60,17 @@ func GetHandler(w http.ResponseWriter, r *http.Request) {
 	}
 }
 
-func QueryTable(table string, fields interface{}) interface{} {
+func QueryTable(table string, fields interface{}) ([]map[string]interface{}, error) {
 	var buffer bytes.Buffer
 	buffer.WriteString("select * from ")
-	buffer.WriteString(table)
+	if returnArray(table) {
+		buffer.WriteString(table[0 : len(table)-2])
+	} else {
+		buffer.WriteString(table)
+	}
 	buffer.WriteString(" where ")
 	if fieldMap, ok := fields.(map[string]interface{}); !ok {
-		return "fields error, only support object."
+		return nil, fmt.Errorf("field type error, only support object")
 	} else {
 		size := len(fieldMap)
 		cols := make([]string, size)
@@ -86,18 +78,20 @@ func QueryTable(table string, fields interface{}) interface{} {
 		i := 0
 		for col, value := range fieldMap {
 			if value == nil {
-				return "field value error, " + col + " is nil"
+				return nil, fmt.Errorf("field value error, %s is nil", col)
 			}
 			cols[i] = col + "=?"
 			values[i] = value
 		}
 		buffer.WriteString(strings.Join(cols, " and "))
-		sql := buffer.String()
-		account := Account{}
-		err := db.Get(&account, sql, values...)
-		if err != nil {
-			return "db.Get error: " + err.Error()
+		if returnArray(table) {
+			return db.QueryAll(buffer.String(), values...)
 		}
-		return account
+		buffer.WriteString(" limit 1")
+		return db.QueryAll(buffer.String(), values...)
 	}
+}
+
+func returnArray(table string) bool {
+	return strings.HasSuffix(table, "[]")
 }

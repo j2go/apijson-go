@@ -1,37 +1,73 @@
 package db
 
 import (
-	"encoding/json"
+	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 	"log"
+	"strings"
 )
 
 var db *sqlx.DB
 
+const dataSourceName = "apijson:1234qqqq@tcp(y.tadev.cn:53306)/sys"
+
 func init() {
 	var err error
-	db, err = sqlx.Open("mysql", "apijson:1234qqqq@tcp(y.tadev.cn:53306)/sys")
+	db, err = sqlx.Open("mysql", dataSourceName)
 	if err != nil {
 		log.Fatal("db connect error", err)
 	}
 }
 
-type TableShow struct {
-	name string `db:"Table_in_sys"`
-}
-
-func getJSON(sqlString string) (string, error) {
-	rows, err := db.Query(sqlString)
+func QueryOne(sql string, args ...interface{}) (map[string]interface{}, error) {
+	if !strings.Contains(strings.ToLower(sql), "limit") {
+		sql += " limit 1"
+	}
+	rows, err := db.Query(sql, args...)
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 	defer rows.Close()
 	columns, err := rows.Columns()
 	if err != nil {
-		return "", err
+		return nil, err
+	}
+	colSize := len(columns)
+	record := make(map[string]interface{})
+	values := make([]interface{}, colSize)
+	valuePointers := make([]interface{}, colSize)
+	if rows.Next() {
+		for i := 0; i < colSize; i++ {
+			valuePointers[i] = &values[i]
+		}
+		rows.Scan(valuePointers...)
+		for i, col := range columns {
+			var v interface{}
+			val := values[i]
+			b, ok := val.([]byte)
+			if ok {
+				v = string(b)
+			} else {
+				v = val
+			}
+			record[col] = v
+		}
+	}
+	return record, nil
+}
+
+func QueryAll(sql string, args ...interface{}) ([]map[string]interface{}, error) {
+	rows, err := db.Query(sql, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	columns, err := rows.Columns()
+	if err != nil {
+		return nil, err
 	}
 	count := len(columns)
-	tableData := make([]map[string]interface{}, 0)
+	tableData := make([]map[string]interface{}, 0, 8)
 	values := make([]interface{}, count)
 	valuePointers := make([]interface{}, count)
 	for rows.Next() {
@@ -53,10 +89,5 @@ func getJSON(sqlString string) (string, error) {
 		}
 		tableData = append(tableData, entry)
 	}
-	jsonData, err := json.Marshal(tableData)
-	if err != nil {
-		return "", err
-	}
-	log.Println(string(jsonData))
-	return string(jsonData), nil
+	return tableData, nil
 }
