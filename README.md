@@ -36,3 +36,8 @@ if rows.Next() {
 error: 39:1: expected '}', found 0 (and 10 more errors)
 ```
 这个报错也太简略了，翻了一下源码，感觉短时间里搞不定，还是自己写一个吧，挖个坑之后填，先把 0.0.1 的功能完成
+
+
+# 0.0.2
+实现关联查询
+[go-jsonpath](https://github.com/yalp/jsonpath/blob/master/jsonpath.go)

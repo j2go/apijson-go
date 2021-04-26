@@ -8,5 +8,6 @@ require (
 	github.com/iancoleman/strcase v0.1.3 // indirect
 	github.com/jmoiron/sqlx v1.3.1 // indirect
 	github.com/tal-tech/go-zero v1.1.6 // indirect
+	github.com/yalp/jsonpath v0.0.0-20180802001716-5cc68e5049a0 // indirect
 	go.uber.org/automaxprocs v1.4.0 // indirect
 )
