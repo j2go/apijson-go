@@ -25,37 +25,40 @@ func GetHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	} else {
-		var bodyMap map[string]interface{}
-		if err = json.Unmarshal(data, &bodyMap); err != nil {
-			log.Println("parse request body json error", err)
-			w.WriteHeader(http.StatusBadRequest)
-			return
-		}
-		respMap := make(map[string]interface{})
-		for table, fields := range bodyMap {
-			if fields != nil {
-				var records []map[string]interface{}
-				if records, err = QueryTable(table, fields); err != nil {
-					w.WriteHeader(http.StatusBadRequest)
-					respMap[table] = err.Error()
+		handleRequestJson(data, w)
+	}
+}
+
+func handleRequestJson(data []byte, w http.ResponseWriter) {
+	var bodyMap map[string]interface{}
+	if err := json.Unmarshal(data, &bodyMap); err != nil {
+		log.Println("parse request body json error", err)
+		w.WriteHeader(http.StatusBadRequest)
+		return
+	}
+	respMap := make(map[string]interface{})
+	for table, fields := range bodyMap {
+		if fields != nil {
+			if records, err := QueryTable(table, fields); err != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				respMap[table] = err.Error()
+			} else {
+				if isArrayType(table) {
+					respMap[table] = records
 				} else {
-					if returnArray(table) {
-						respMap[table] = records
-					} else {
-						respMap[table] = records[0]
-					}
+					respMap[table] = records[0]
 				}
 			}
-			log.Println("get:query table: ", table, ", fields: ", fields)
 		}
-		if respBody, err := json.Marshal(respMap); err != nil {
+		log.Println("get:query table: ", table, ", fields: ", fields)
+	}
+	if respBody, err := json.Marshal(respMap); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+	} else {
+		w.WriteHeader(http.StatusOK)
+		_, err := w.Write(respBody)
+		if err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
-		} else {
-			w.WriteHeader(http.StatusOK)
-			_, err := w.Write(respBody)
-			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-			}
 		}
 	}
 }
@@ -63,7 +66,7 @@ func GetHandler(w http.ResponseWriter, r *http.Request) {
 func QueryTable(table string, fields interface{}) ([]map[string]interface{}, error) {
 	var buffer bytes.Buffer
 	buffer.WriteString("select * from ")
-	if returnArray(table) {
+	if isArrayType(table) {
 		buffer.WriteString(table[0 : len(table)-2])
 	} else {
 		buffer.WriteString(table)
@@ -84,7 +87,7 @@ func QueryTable(table string, fields interface{}) ([]map[string]interface{}, err
 			values[i] = value
 		}
 		buffer.WriteString(strings.Join(cols, " and "))
-		if returnArray(table) {
+		if isArrayType(table) {
 			return db.QueryAll(buffer.String(), values...)
 		}
 		buffer.WriteString(" limit 1")
@@ -92,6 +95,6 @@ func QueryTable(table string, fields interface{}) ([]map[string]interface{}, err
 	}
 }
 
-func returnArray(table string) bool {
+func isArrayType(table string) bool {
 	return strings.HasSuffix(table, "[]")
 }
