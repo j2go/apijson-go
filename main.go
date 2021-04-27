@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strconv"
 	"strings"
 )
 
@@ -39,14 +40,23 @@ func handleRequestJson(data []byte, w http.ResponseWriter) {
 	respMap := make(map[string]interface{})
 	for table, fields := range bodyMap {
 		if fields != nil {
-			if records, err := QueryTable(table, fields); err != nil {
+			if fieldMap, ok := fields.(map[string]interface{}); !ok {
 				w.WriteHeader(http.StatusBadRequest)
-				respMap[table] = err.Error()
+				respMap[table] = fmt.Errorf("field type error, only support object")
 			} else {
-				if isArrayType(table) {
-					respMap[table] = records
+				parseObj := SQLParseObject{}
+				if err := parseObj.from(table, fieldMap); err != nil {
+					w.WriteHeader(http.StatusBadRequest)
+					respMap[table] = err.Error()
 				} else {
-					respMap[table] = records[0]
+					if parseObj.queryFirst {
+						respMap[table], err = db.QueryOne(parseObj.toSQL(), parseObj.values...)
+					} else {
+						respMap[table], err = db.QueryAll(parseObj.toSQL(), parseObj.values...)
+					}
+					if err != nil {
+						respMap[table] = err.Error()
+					}
 				}
 			}
 		}
@@ -63,38 +73,65 @@ func handleRequestJson(data []byte, w http.ResponseWriter) {
 	}
 }
 
-func QueryTable(table string, fields interface{}) ([]map[string]interface{}, error) {
-	var buffer bytes.Buffer
-	buffer.WriteString("select * from ")
-	if isArrayType(table) {
-		buffer.WriteString(table[0 : len(table)-2])
-	} else {
-		buffer.WriteString(table)
-	}
-	buffer.WriteString(" where ")
-	if fieldMap, ok := fields.(map[string]interface{}); !ok {
-		return nil, fmt.Errorf("field type error, only support object")
-	} else {
-		size := len(fieldMap)
-		cols := make([]string, size)
-		values := make([]interface{}, size)
-		i := 0
-		for col, value := range fieldMap {
-			if value == nil {
-				return nil, fmt.Errorf("field value error, %s is nil", col)
-			}
-			cols[i] = col + "=?"
-			values[i] = value
-		}
-		buffer.WriteString(strings.Join(cols, " and "))
-		if isArrayType(table) {
-			return db.QueryAll(buffer.String(), values...)
-		}
-		buffer.WriteString(" limit 1")
-		return db.QueryAll(buffer.String(), values...)
-	}
+type SQLParseObject struct {
+	columns    []string
+	table      string
+	where      []string
+	limit      int
+	page       int
+	queryFirst bool
+	withPage   bool
+	values     []interface{}
 }
 
-func isArrayType(table string) bool {
-	return strings.HasSuffix(table, "[]")
+func (o *SQLParseObject) from(table string, fieldMap map[string]interface{}) error {
+	if strings.HasSuffix(table, "[]") {
+		o.table = table[0 : len(table)-2]
+		o.queryFirst = false
+	} else {
+		o.table = table
+		o.queryFirst = true
+	}
+	for field, value := range fieldMap {
+		if value == nil {
+			return fmt.Errorf("field value error, %s is nil", field)
+		} else if strings.HasPrefix(field, "@") {
+			switch field[1:] {
+			case "page":
+				o.page = int(value.(float64))
+			case "size":
+				o.limit = int(value.(float64))
+			case "column":
+				o.columns = strings.Split(value.(string), ",")
+			}
+		} else {
+			o.where = append(o.where, field+"=?")
+			o.values = append(o.values, value)
+		}
+	}
+	o.withPage = o.page > 0 && o.limit > 0
+	return nil
+}
+
+func (o *SQLParseObject) toSQL() string {
+	var buf bytes.Buffer
+	buf.WriteString("select ")
+	if o.columns == nil {
+		buf.WriteString(" * ")
+	} else {
+		buf.WriteString(strings.Join(o.columns, ","))
+	}
+	buf.WriteString(" from ")
+	buf.WriteString(o.table)
+	buf.WriteString(" where ")
+	buf.WriteString(strings.Join(o.where, " and "))
+	if o.queryFirst {
+		buf.WriteString(" limit 1")
+	} else if o.withPage {
+		buf.WriteString(" limit ")
+		buf.WriteString(strconv.Itoa(o.limit))
+		buf.WriteString(" offset ")
+		buf.WriteString(strconv.Itoa(o.limit * (o.page - 1)))
+	}
+	return buf.String()
 }
