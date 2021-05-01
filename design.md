@@ -1,3 +1,5 @@
+https://github.com/Tencent/APIJSON/issues/38
+
 # 设计方案
 
 ```json

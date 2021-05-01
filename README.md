@@ -1,5 +1,15 @@
 # apijson-go
+功能实现   
+- [x] 单条查询
+- [x] 多条查询
 
+实现历史
+
+# 0.0.2
+实现关联查询
+[go-jsonpath](https://github.com/yalp/jsonpath/blob/master/jsonpath.go)
+
+## 
 ## 0.0.1 实现单表查询
 本来是想 sql 执行完之后把结果直接存到 map 里，但是 rows 记录读取需要传的是指针，处理起来比较麻烦，下面这么写会出错   
 ```
@@ -38,8 +48,4 @@ error: 39:1: expected '}', found 0 (and 10 more errors)
 这个报错也太简略了，翻了一下源码，感觉短时间里搞不定，还是自己写一个吧，挖个坑之后填，先把 0.0.1 的功能完成
 
 
-# 0.0.2
-实现关联查询
-[go-jsonpath](https://github.com/yalp/jsonpath/blob/master/jsonpath.go)
 
-## 
