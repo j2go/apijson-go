@@ -8,6 +8,8 @@ import (
 )
 
 type SQLParseObject struct {
+	Src map[string]interface{}
+
 	QueryFirst bool
 	Values     []interface{}
 
@@ -20,23 +22,23 @@ type SQLParseObject struct {
 	withPage bool
 }
 
-func (o *SQLParseObject) From(table string, fieldMap map[string]interface{}) error {
-	if strings.HasSuffix(table, "[]") {
-		o.table = table[0 : len(table)-2]
+func (o *SQLParseObject) From(key string, fieldMap map[string]interface{}) error {
+	if strings.HasSuffix(key, "[]") {
 		o.QueryFirst = false
-	} else {
-		o.table = table
-		o.QueryFirst = true
+		return o.parseListQuery(fieldMap)
 	}
+	o.QueryFirst = true
+	return o.parseObject(key, fieldMap)
+}
+
+func (o *SQLParseObject) parseObject(key string, fieldMap map[string]interface{}) error {
+	o.table = key
 	for field, value := range fieldMap {
 		if value == nil {
 			return fmt.Errorf("field value error, %s is nil", field)
-		} else if strings.HasPrefix(field, "@") {
+		}
+		if strings.HasPrefix(field, "@") {
 			switch field[1:] {
-			case "page":
-				o.page = int(value.(float64))
-			case "size":
-				o.limit = int(value.(float64))
 			case "order":
 				o.order = value.(string)
 			case "column":
@@ -44,7 +46,41 @@ func (o *SQLParseObject) From(table string, fieldMap map[string]interface{}) err
 			}
 		} else {
 			o.where = append(o.where, field+"=?")
-			o.Values = append(o.Values, value)
+			// @ 结尾要去已查询的结果中找值
+			if strings.HasSuffix(field, "@") {
+				paths := strings.Split(value.(string), "/")
+				var targetValue interface{}
+				for _, x := range paths {
+					if targetValue == nil {
+						targetValue = o.Src[x]
+					} else {
+						targetValue = targetValue.(map[string]interface{})[x]
+					}
+					if targetValue == nil {
+						return fmt.Errorf("关联查询未发现相应值，key: %s, value: %s", field, paths)
+					}
+				}
+				o.Values = append(o.Values, targetValue)
+			} else {
+				o.Values = append(o.Values, value)
+			}
+		}
+	}
+	return nil
+}
+
+func (o *SQLParseObject) parseListQuery(fieldMap map[string]interface{}) error {
+	for field, value := range fieldMap {
+		if value == nil {
+			return fmt.Errorf("field value error, %s is nil", field)
+		}
+		switch field {
+		case "page":
+			o.page = int(value.(float64))
+		case "size":
+			o.limit = int(value.(float64))
+		default:
+			return o.parseObject(field, value.(map[string]interface{}))
 		}
 	}
 	o.withPage = o.page > 0 && o.limit > 0

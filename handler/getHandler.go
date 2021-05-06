@@ -2,12 +2,10 @@ package handler
 
 import (
 	"encoding/json"
-	"fmt"
 	"github.com/keepfoo/apijson/db"
 	"io/ioutil"
 	"log"
 	"net/http"
-	"strings"
 )
 
 func GetHandler(w http.ResponseWriter, r *http.Request) {
@@ -43,20 +41,18 @@ func getResponse(bodyMap map[string]interface{}) map[string]interface{} {
 	for key, fields := range bodyMap {
 		if fields == nil {
 			bodyMap["code"] = http.StatusBadRequest
-			bodyMap["msg"] = fmt.Errorf("value cannot be nil, key: %s", key)
+			bodyMap["msg"] = "value cannot be nil, key: %s" + key
 			return bodyMap
-		}
-		if strings.HasSuffix(key, "[]") {
-
 		}
 		if fieldMap, ok := fields.(map[string]interface{}); !ok {
 			bodyMap["code"] = http.StatusBadRequest
-			bodyMap["msg"] = fmt.Errorf("field type error, only support object")
+			bodyMap["msg"] = "field type error, only support object"
 		} else {
-			parseObj := db.SQLParseObject{}
+			parseObj := db.SQLParseObject{Src: bodyMap}
 			if err := parseObj.From(key, fieldMap); err != nil {
 				bodyMap["code"] = http.StatusBadRequest
 				bodyMap["msg"] = err.Error()
+				return bodyMap
 			} else {
 				if parseObj.QueryFirst {
 					bodyMap[key], err = db.QueryOne(parseObj.ToSQL(), parseObj.Values...)
