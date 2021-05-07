@@ -1,6 +1,8 @@
 package db
 
 import (
+	"database/sql"
+	"fmt"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
 	"log"
@@ -9,7 +11,23 @@ import (
 
 var db *sqlx.DB
 
-const dataSourceName = "apijson:1234qqqq@tcp(y.tadev.cn:53306)/sys"
+const dataSourceName = "root:123456@tcp(localhost:3306)/apijson"
+
+type TableMeta struct {
+	Name    string
+	Columns []ColumnMeta
+}
+
+type ColumnMeta struct {
+	Field   string         `db:"Field"`
+	Type    string         `db:"Type"`
+	Null    string         `db:"Null"`
+	Key     string         `db:"Key"`
+	Default sql.NullString `db:"Default"`
+	Extra   sql.NullString `db:"Extra"`
+}
+
+var Tables []TableMeta
 
 func init() {
 	var err error
@@ -17,6 +35,25 @@ func init() {
 	if err != nil {
 		log.Fatal("db connect error", err)
 	}
+	if rows, err := db.Query("show tables"); err != nil {
+		log.Fatal("db Query error", err)
+	} else {
+		for rows.Next() {
+			var name string
+			rows.Scan(&name)
+			Tables = append(Tables, TableMeta{Name: name, Columns: loadColumnMeta(name)})
+		}
+	}
+}
+
+func loadColumnMeta(name string) []ColumnMeta {
+	var columns []ColumnMeta
+	err := db.Select(&columns, "desc "+name)
+	if err != nil {
+		fmt.Println("exec failed, ", err)
+	}
+	log.Printf("table: %s, columns: %v", name, columns)
+	return columns
 }
 
 func QueryOne(sql string, args ...interface{}) (map[string]interface{}, error) {
