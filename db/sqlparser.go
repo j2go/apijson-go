@@ -8,8 +8,7 @@ import (
 )
 
 type SQLParseObject struct {
-	Src map[string]interface{}
-
+	LoadFunc   func(s string) interface{}
 	QueryFirst bool
 	Values     []interface{}
 
@@ -48,19 +47,7 @@ func (o *SQLParseObject) parseObject(key string, fieldMap map[string]interface{}
 			o.where = append(o.where, field+"=?")
 			// @ 结尾要去已查询的结果中找值
 			if strings.HasSuffix(field, "@") {
-				paths := strings.Split(value.(string), "/")
-				var targetValue interface{}
-				for _, x := range paths {
-					if targetValue == nil {
-						targetValue = o.Src[x]
-					} else {
-						targetValue = targetValue.(map[string]interface{})[x]
-					}
-					if targetValue == nil {
-						return fmt.Errorf("关联查询未发现相应值，key: %s, value: %s", field, paths)
-					}
-				}
-				o.Values = append(o.Values, targetValue)
+				o.Values = append(o.Values, o.LoadFunc(value.(string)))
 			} else {
 				o.Values = append(o.Values, value)
 			}

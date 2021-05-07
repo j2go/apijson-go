@@ -2,10 +2,13 @@ package handler
 
 import (
 	"encoding/json"
+	"fmt"
 	"github.com/keepfoo/apijson/db"
+	"github.com/keepfoo/apijson/logger"
 	"io/ioutil"
 	"log"
 	"net/http"
+	"strings"
 )
 
 func GetHandler(w http.ResponseWriter, r *http.Request) {
@@ -25,7 +28,7 @@ func handleRequestJson(data []byte, w http.ResponseWriter) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
-	respMap := getResponse(bodyMap)
+	respMap := NewSQLParseContext(bodyMap).getResponse()
 	w.WriteHeader(respMap["code"].(int))
 	if respBody, err := json.Marshal(respMap); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -37,34 +40,92 @@ func handleRequestJson(data []byte, w http.ResponseWriter) {
 	}
 }
 
-func getResponse(bodyMap map[string]interface{}) map[string]interface{} {
-	for key, fields := range bodyMap {
-		if fields == nil {
-			bodyMap["code"] = http.StatusBadRequest
-			bodyMap["msg"] = "value cannot be nil, key: %s" + key
-			return bodyMap
-		}
-		if fieldMap, ok := fields.(map[string]interface{}); !ok {
-			bodyMap["code"] = http.StatusBadRequest
-			bodyMap["msg"] = "field type error, only support object"
-		} else {
-			parseObj := db.SQLParseObject{Src: bodyMap}
-			if err := parseObj.From(key, fieldMap); err != nil {
-				bodyMap["code"] = http.StatusBadRequest
-				bodyMap["msg"] = err.Error()
-				return bodyMap
-			} else {
-				if parseObj.QueryFirst {
-					bodyMap[key], err = db.QueryOne(parseObj.ToSQL(), parseObj.Values...)
-				} else {
-					bodyMap[key], err = db.QueryAll(parseObj.ToSQL(), parseObj.Values...)
-				}
-				if err != nil {
-					bodyMap["msg"] = err.Error()
-				}
+type SQLParseContext struct {
+	req           map[string]interface{}
+	resp          map[string]interface{}
+	waitKeys      map[string]bool
+	completedKeys map[string]bool
+	end           bool
+}
+
+func NewSQLParseContext(bodyMap map[string]interface{}) *SQLParseContext {
+	logger.Debugf("NewSQLParseContext %v", bodyMap)
+	return &SQLParseContext{req: bodyMap, resp: make(map[string]interface{}), waitKeys: make(map[string]bool), completedKeys: make(map[string]bool)}
+}
+
+func (c *SQLParseContext) getResponse() map[string]interface{} {
+	for key, _ := range c.req {
+		if !c.completedKeys[key] {
+			c.parseResponse(key)
+			if c.end {
+				return c.resp
 			}
 		}
-		log.Println("get:query table: ", key, ", fields: ", fields)
 	}
-	return bodyMap
+	return c.resp
+}
+
+func (c *SQLParseContext) parseResponse(key string) {
+	c.waitKeys[key] = true
+	logger.Debugf("开始解析 %s", key)
+	if c.req[key] == nil {
+		c.End(http.StatusBadRequest, "值不能为空, key: "+key)
+		return
+	}
+	if fieldMap, ok := c.req[key].(map[string]interface{}); !ok {
+		c.End(http.StatusBadRequest, "值类型不对，只支持 Object 类型")
+	} else {
+		parseObj := db.SQLParseObject{LoadFunc: c.queryResp}
+		if c.end {
+			return
+		}
+		if err := parseObj.From(key, fieldMap); err != nil {
+			c.End(http.StatusBadRequest, err.Error())
+			return
+		} else {
+			if parseObj.QueryFirst {
+				c.resp[key], err = db.QueryOne(parseObj.ToSQL(), parseObj.Values...)
+			} else {
+				c.resp[key], err = db.QueryAll(parseObj.ToSQL(), parseObj.Values...)
+			}
+			if err != nil {
+				c.End(http.StatusInternalServerError, err.Error())
+			} else {
+				c.resp["code"] = http.StatusOK
+			}
+		}
+	}
+	c.waitKeys[key] = false
+	//log.Println("get:query table: ", key, ", fields: ", fields)
+}
+
+func (c *SQLParseContext) queryResp(queryString string) interface{} {
+	paths := strings.Split(queryString, "/")
+	var targetValue interface{}
+	for _, x := range paths {
+		if targetValue == nil {
+			if c.waitKeys[x] {
+				c.End(http.StatusBadRequest, "关联查询有循环依赖，queryString: "+queryString)
+				return nil
+			} else if c.completedKeys[x] {
+				targetValue = c.resp[x]
+			} else {
+				c.parseResponse(x)
+				targetValue = c.resp[x]
+			}
+		} else {
+			targetValue = targetValue.(map[string]interface{})[x]
+		}
+		if targetValue == nil {
+			c.End(http.StatusBadRequest, fmt.Sprintf("关联查询未发现相应值，queryString: %s", queryString))
+		}
+	}
+	return targetValue
+}
+
+func (c *SQLParseContext) End(code int, msg string) {
+	c.resp["code"] = code
+	c.resp["msg"] = msg
+	c.end = true
+	logger.Debugf("发生错误，终止请求，code: %d, msg: %s", code, msg)
 }
