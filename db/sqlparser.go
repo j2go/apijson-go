@@ -44,11 +44,12 @@ func (o *SQLParseObject) parseObject(key string, fieldMap map[string]interface{}
 				o.columns = strings.Split(value.(string), ",")
 			}
 		} else {
-			o.where = append(o.where, field+"=?")
 			// @ 结尾要去已查询的结果中找值
 			if strings.HasSuffix(field, "@") {
+				o.where = append(o.where, field[0:len(field)-1]+"=?")
 				o.Values = append(o.Values, o.LoadFunc(value.(string)))
 			} else {
+				o.where = append(o.where, field+"=?")
 				o.Values = append(o.Values, value)
 			}
 		}
@@ -67,7 +68,9 @@ func (o *SQLParseObject) parseListQuery(fieldMap map[string]interface{}) error {
 		case "size":
 			o.limit = int(value.(float64))
 		default:
-			return o.parseObject(field, value.(map[string]interface{}))
+			if err := o.parseObject(field, value.(map[string]interface{})); err != nil {
+				return err
+			}
 		}
 	}
 	o.withPage = o.page > 0 && o.limit > 0
