@@ -8,6 +8,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"strings"
+	"time"
 )
 
 func GetHandler(w http.ResponseWriter, r *http.Request) {
@@ -44,16 +45,24 @@ type SQLParseContext struct {
 	resp          map[string]interface{}
 	waitKeys      map[string]bool
 	completedKeys map[string]bool
+	time          map[string]int64
 	end           bool
 }
 
 func NewSQLParseContext(bodyMap map[string]interface{}) *SQLParseContext {
 	logger.Debugf("NewSQLParseContext %v", bodyMap)
-	return &SQLParseContext{req: bodyMap, resp: make(map[string]interface{}), waitKeys: make(map[string]bool), completedKeys: make(map[string]bool)}
+	return &SQLParseContext{
+		req:           bodyMap,
+		resp:          make(map[string]interface{}),
+		waitKeys:      make(map[string]bool),
+		completedKeys: make(map[string]bool),
+		time:          make(map[string]int64),
+	}
 }
 
 func (c *SQLParseContext) getResponse() map[string]interface{} {
-	for key, _ := range c.req {
+	startTime := time.Now().Nanosecond()
+	for key := range c.req {
 		if !c.completedKeys[key] {
 			c.parseResponse(key)
 			if c.end {
@@ -61,10 +70,13 @@ func (c *SQLParseContext) getResponse() map[string]interface{} {
 			}
 		}
 	}
+	c.resp["time"] = fmt.Sprintf("%dms|%v", (time.Now().Nanosecond()-startTime)/1000000, c.time)
 	return c.resp
 }
 
 func (c *SQLParseContext) parseResponse(key string) {
+	startTime := time.Now().UnixNano()
+
 	c.waitKeys[key] = true
 	logger.Debugf("开始解析 %s", key)
 	if c.req[key] == nil {
@@ -97,9 +109,10 @@ func (c *SQLParseContext) parseResponse(key string) {
 		}
 	}
 	c.waitKeys[key] = false
-	//log.Println("get:query table: ", key, ", fields: ", fields)
+	c.time[key] = time.Now().UnixNano() - startTime
 }
 
+// 查询已知结果
 func (c *SQLParseContext) queryResp(queryString string) interface{} {
 	var paths []string
 	qs := strings.TrimSpace(queryString)
@@ -134,5 +147,5 @@ func (c *SQLParseContext) End(code int, msg string) {
 	c.resp["code"] = code
 	c.resp["msg"] = msg
 	c.end = true
-	logger.Debugf("发生错误，终止请求，code: %d, msg: %s", code, msg)
+	logger.Errorf("发生错误，终止处理, code: %d, msg: %s", code, msg)
 }

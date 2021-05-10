@@ -42,12 +42,24 @@ func Infof(format string, v ...interface{}) {
 	}
 	log.Printf("Info "+format, v...)
 }
+
 func Warn(msg string) {
 	if WARN < level {
 		return
 	}
 	log.Println("Warn", msg)
 }
+
+func Warnf(format string, v ...interface{}) {
+	if WARN < level {
+		return
+	}
+	log.Printf("Warn "+format, v...)
+}
+
 func Error(msg string) {
 	log.Println("Error", msg)
+}
+func Errorf(format string, v ...interface{}) {
+	log.Printf("Error "+format, v...)
 }

@@ -70,14 +70,21 @@ func (o *SQLParseObject) parseListQuery(fieldMap map[string]interface{}) error {
 		case "page":
 			o.page = int(value.(float64))
 			logger.Debugf("parseListQuery table:%s, page: %d", o.table, o.page)
-		case "size":
+		case "count":
 			o.limit = int(value.(float64))
 			logger.Debugf("parseListQuery table:%s, size: %d", o.table, o.limit)
 		default:
-			if err := o.parseObject(field, value.(map[string]interface{})); err != nil {
-				return err
+			if _, ok := AllTable[field]; ok {
+				if err := o.parseObject(field, value.(map[string]interface{})); err != nil {
+					return err
+				}
+			} else {
+				logger.Warnf("请求数据拼写有误? key: %s", field)
 			}
 		}
+	}
+	if len(o.table) == 0 {
+		return fmt.Errorf("请求列表数据处理失败，未发现可用表名 %v", fieldMap)
 	}
 	o.withPage = o.page > 0 && o.limit > 0
 	return nil
