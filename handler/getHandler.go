@@ -6,14 +6,13 @@ import (
 	"github.com/keepfoo/apijson/db"
 	"github.com/keepfoo/apijson/logger"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"strings"
 )
 
 func GetHandler(w http.ResponseWriter, r *http.Request) {
 	if data, err := ioutil.ReadAll(r.Body); err != nil {
-		log.Println("read request body error", err)
+		logger.Error("请求参数有问题: " + err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	} else {
@@ -24,7 +23,7 @@ func GetHandler(w http.ResponseWriter, r *http.Request) {
 func handleRequestJson(data []byte, w http.ResponseWriter) {
 	var bodyMap map[string]interface{}
 	if err := json.Unmarshal(data, &bodyMap); err != nil {
-		log.Println("parse request body json error", err)
+		logger.Error("请求体 JSON 格式有问题: " + err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	}
@@ -33,8 +32,8 @@ func handleRequestJson(data []byte, w http.ResponseWriter) {
 	if respBody, err := json.Marshal(respMap); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 	} else {
-		_, err := w.Write(respBody)
-		if err != nil {
+		logger.Debugf("返回数据 %s", string(respBody))
+		if _, err = w.Write(respBody); err != nil {
 			w.WriteHeader(http.StatusInternalServerError)
 		}
 	}
@@ -83,10 +82,12 @@ func (c *SQLParseContext) parseResponse(key string) {
 			c.End(http.StatusBadRequest, err.Error())
 			return
 		} else {
+			sql := parseObj.ToSQL()
+			logger.Debugf("解析 %s 执行SQL: %s %v", key, sql, parseObj.Values)
 			if parseObj.QueryFirst {
-				c.resp[key], err = db.QueryOne(parseObj.ToSQL(), parseObj.Values...)
+				c.resp[key], err = db.QueryOne(sql, parseObj.Values...)
 			} else {
-				c.resp[key], err = db.QueryAll(parseObj.ToSQL(), parseObj.Values...)
+				c.resp[key], err = db.QueryAll(sql, parseObj.Values...)
 			}
 			if err != nil {
 				c.End(http.StatusInternalServerError, err.Error())
@@ -100,7 +101,13 @@ func (c *SQLParseContext) parseResponse(key string) {
 }
 
 func (c *SQLParseContext) queryResp(queryString string) interface{} {
-	paths := strings.Split(queryString, "/")
+	var paths []string
+	qs := strings.TrimSpace(queryString)
+	if strings.HasPrefix(qs, "/") {
+		paths = strings.Split(qs[1:], "/")
+	} else {
+		paths = strings.Split(queryString, "/")
+	}
 	var targetValue interface{}
 	for _, x := range paths {
 		if targetValue == nil {

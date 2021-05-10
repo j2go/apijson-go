@@ -3,6 +3,7 @@ package db
 import (
 	"bytes"
 	"fmt"
+	"github.com/keepfoo/apijson/logger"
 	"strconv"
 	"strings"
 )
@@ -47,7 +48,10 @@ func (o *SQLParseObject) parseObject(key string, fieldMap map[string]interface{}
 			// @ 结尾要去已查询的结果中找值
 			if strings.HasSuffix(field, "@") {
 				o.where = append(o.where, field[0:len(field)-1]+"=?")
-				o.Values = append(o.Values, o.LoadFunc(value.(string)))
+				stringValue := value.(string)
+				res := o.LoadFunc(stringValue)
+				logger.Debugf("关联查询 %s: %s <- %v", field, stringValue, res)
+				o.Values = append(o.Values, res)
 			} else {
 				o.where = append(o.where, field+"=?")
 				o.Values = append(o.Values, value)
@@ -65,8 +69,10 @@ func (o *SQLParseObject) parseListQuery(fieldMap map[string]interface{}) error {
 		switch field {
 		case "page":
 			o.page = int(value.(float64))
+			logger.Debugf("parseListQuery table:%s, page: %d", o.table, o.page)
 		case "size":
 			o.limit = int(value.(float64))
+			logger.Debugf("parseListQuery table:%s, size: %d", o.table, o.limit)
 		default:
 			if err := o.parseObject(field, value.(map[string]interface{})); err != nil {
 				return err
@@ -81,14 +87,16 @@ func (o *SQLParseObject) ToSQL() string {
 	var buf bytes.Buffer
 	buf.WriteString("SELECT ")
 	if o.columns == nil {
-		buf.WriteString(" * ")
+		buf.WriteString("*")
 	} else {
 		buf.WriteString(strings.Join(o.columns, ","))
 	}
 	buf.WriteString(" FROM ")
 	buf.WriteString(o.table)
-	buf.WriteString(" WHERE ")
-	buf.WriteString(strings.Join(o.where, " and "))
+	if len(o.Values) > 0 {
+		buf.WriteString(" WHERE ")
+		buf.WriteString(strings.Join(o.where, " and "))
+	}
 	if o.order != "" {
 		buf.WriteString(" ORDER BY ")
 		buf.WriteString(o.order)
