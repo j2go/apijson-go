@@ -45,13 +45,15 @@ func (o *SQLParseObject) parseObject(key string, fieldMap map[string]interface{}
 				o.columns = strings.Split(value.(string), ",")
 			}
 		} else {
-			// @ 结尾要去已查询的结果中找值
-			if strings.HasSuffix(field, "@") {
+
+			if strings.HasSuffix(field, "@") { // @ 结尾表示有关联查询
 				o.where = append(o.where, field[0:len(field)-1]+"=?")
 				stringValue := value.(string)
 				res := o.LoadFunc(stringValue)
 				logger.Debugf("关联查询 %s: %s <- %v", field, stringValue, res)
 				o.Values = append(o.Values, res)
+			} else if strings.HasSuffix(field[0:len(field)-2], "{}") { // {} 表示需要范围匹配
+				o.parseRangeCondition(field, value)
 			} else {
 				o.where = append(o.where, field+"=?")
 				o.Values = append(o.Values, value)
@@ -59,6 +61,30 @@ func (o *SQLParseObject) parseObject(key string, fieldMap map[string]interface{}
 		}
 	}
 	return nil
+}
+
+func (o *SQLParseObject) parseRangeCondition(field string, value interface{}) {
+	// 数组使用 IN 条件
+	if values, ok := value.([]interface{}); ok {
+		condition := field + " in ("
+		for i, v := range values {
+			if i == 0 {
+				condition += "?"
+			} else {
+				condition += ",?"
+			}
+			o.Values = append(o.Values, v)
+		}
+		o.where = append(o.where, condition+")")
+		return
+	}
+	if strValue, ok := value.(string); ok {
+		for _, condition := range strings.Split(strValue, ",") {
+			if len(condition) > 0 {
+				o.where = append(o.where, field+" "+condition)
+			}
+		}
+	}
 }
 
 func (o *SQLParseObject) parseListQuery(fieldMap map[string]interface{}) error {
@@ -100,7 +126,7 @@ func (o *SQLParseObject) ToSQL() string {
 	}
 	buf.WriteString(" FROM ")
 	buf.WriteString(o.table)
-	if len(o.Values) > 0 {
+	if len(o.where) > 0 {
 		buf.WriteString(" WHERE ")
 		buf.WriteString(strings.Join(o.where, " and "))
 	}
