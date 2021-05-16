@@ -45,7 +45,6 @@ func (o *SQLParseObject) parseObject(key string, fieldMap map[string]interface{}
 				o.columns = strings.Split(value.(string), ",")
 			}
 		} else {
-
 			if strings.HasSuffix(field, "@") { // @ 结尾表示有关联查询
 				o.where = append(o.where, field[0:len(field)-1]+"=?")
 				stringValue := value.(string)
@@ -88,6 +87,7 @@ func (o *SQLParseObject) parseRangeCondition(field string, value interface{}) {
 }
 
 func (o *SQLParseObject) parseListQuery(fieldMap map[string]interface{}) error {
+
 	for field, value := range fieldMap {
 		if value == nil {
 			return fmt.Errorf("field value error, %s is nil", field)
@@ -105,7 +105,7 @@ func (o *SQLParseObject) parseListQuery(fieldMap map[string]interface{}) error {
 					return err
 				}
 			} else {
-				logger.Warnf("请求数据拼写有误? key: %s", field)
+				logger.Warnf("表不存在! TableName: %s", field)
 			}
 		}
 	}

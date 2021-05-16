@@ -64,7 +64,7 @@ func (c *SQLParseContext) getResponse() map[string]interface{} {
 	startTime := time.Now().Nanosecond()
 	for key := range c.req {
 		if !c.completedKeys[key] {
-			c.parseResponse(key)
+			c.parseSQLAndGetResponse(key)
 			if c.end {
 				return c.resp
 			}
@@ -74,7 +74,7 @@ func (c *SQLParseContext) getResponse() map[string]interface{} {
 	return c.resp
 }
 
-func (c *SQLParseContext) parseResponse(key string) {
+func (c *SQLParseContext) parseSQLAndGetResponse(key string) {
 	startTime := time.Now().UnixNano()
 
 	c.waitKeys[key] = true
@@ -130,7 +130,7 @@ func (c *SQLParseContext) queryResp(queryString string) interface{} {
 			} else if c.completedKeys[x] {
 				targetValue = c.resp[x]
 			} else {
-				c.parseResponse(x)
+				c.parseSQLAndGetResponse(x)
 				targetValue = c.resp[x]
 			}
 		} else {
