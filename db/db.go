@@ -11,7 +11,7 @@ import (
 
 var db *sqlx.DB
 
-const dataSourceName = "root:123456@tcp(localhost:3306)/apijson"
+const dataSourceName = "root:123456@tcp(localhost:3306)/sys"
 
 type TableMeta struct {
 	Name    string

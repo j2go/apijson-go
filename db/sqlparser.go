@@ -8,9 +8,10 @@ import (
 	"strings"
 )
 
-type SQLParseObject struct {
+type SQLParser struct {
+	Key        string
 	LoadFunc   func(s string) interface{}
-	QueryFirst bool
+	RequestMap map[string]interface{}
 	Values     []interface{}
 
 	table    string
@@ -20,20 +21,43 @@ type SQLParseObject struct {
 	limit    int
 	page     int
 	withPage bool
+
+	children []SQLParser
 }
 
-func (o *SQLParseObject) From(key string, fieldMap map[string]interface{}) error {
-	if strings.HasSuffix(key, "[]") {
-		o.QueryFirst = false
-		return o.parseListQuery(fieldMap)
+func (o *SQLParser) GetData() (interface{}, error) {
+	if strings.HasSuffix(o.Key, "[]") {
+		if err := o.parseListQuery(); err != nil {
+			return nil, err
+		}
+		values, err := QueryAll(o.ToSQL(), o.Values...)
+		if err != nil {
+			return nil, err
+		}
+		if len(o.children) > 0 {
+			for _, v := range values {
+				for _, childParser := range o.children {
+					if data, err := childParser.GetData(); err != nil {
+						return nil, err
+					} else {
+						v[childParser.Key] = data
+					}
+				}
+			}
+		}
+		return values, nil
 	}
-	o.QueryFirst = true
-	return o.parseObject(key, fieldMap)
+	err := o.parseObject()
+	if err != nil {
+		return nil, err
+	}
+	sql := o.ToSQL()
+	logger.Debugf("解析 %s 执行SQL: %s %v", o.Key, sql, o.Values)
+	return QueryOne(sql, o.Values...), nil
 }
 
-func (o *SQLParseObject) parseObject(key string, fieldMap map[string]interface{}) error {
-	o.table = key
-	for field, value := range fieldMap {
+func (o *SQLParser) parseObject() error {
+	for field, value := range o.RequestMap {
 		if value == nil {
 			return fmt.Errorf("field value error, %s is nil", field)
 		}
@@ -62,7 +86,7 @@ func (o *SQLParseObject) parseObject(key string, fieldMap map[string]interface{}
 	return nil
 }
 
-func (o *SQLParseObject) parseRangeCondition(field string, value interface{}) {
+func (o *SQLParser) parseRangeCondition(field string, value interface{}) {
 	// 数组使用 IN 条件
 	if values, ok := value.([]interface{}); ok {
 		condition := field + " in ("
@@ -86,9 +110,9 @@ func (o *SQLParseObject) parseRangeCondition(field string, value interface{}) {
 	}
 }
 
-func (o *SQLParseObject) parseListQuery(fieldMap map[string]interface{}) error {
-
-	for field, value := range fieldMap {
+func (o *SQLParser) parseListQuery() error {
+	o.table = o.Key[0 : len(o.Key)-2]
+	for field, value := range o.RequestMap {
 		if value == nil {
 			return fmt.Errorf("field value error, %s is nil", field)
 		}
@@ -101,7 +125,7 @@ func (o *SQLParseObject) parseListQuery(fieldMap map[string]interface{}) error {
 			logger.Debugf("parseListQuery table:%s, size: %d", o.table, o.limit)
 		default:
 			if _, ok := AllTable[field]; ok {
-				if err := o.parseObject(field, value.(map[string]interface{})); err != nil {
+				if err := o.parseObject(); err != nil {
 					return err
 				}
 			} else {
@@ -110,13 +134,13 @@ func (o *SQLParseObject) parseListQuery(fieldMap map[string]interface{}) error {
 		}
 	}
 	if len(o.table) == 0 {
-		return fmt.Errorf("请求列表数据处理失败，未发现可用表名 %v", fieldMap)
+		return fmt.Errorf("请求列表数据处理失败，未发现可用表名 %v", o.RequestMap)
 	}
 	o.withPage = o.page > 0 && o.limit > 0
 	return nil
 }
 
-func (o *SQLParseObject) ToSQL() string {
+func (o *SQLParser) ToSQL() string {
 	var buf bytes.Buffer
 	buf.WriteString("SELECT ")
 	if o.columns == nil {
@@ -134,7 +158,7 @@ func (o *SQLParseObject) ToSQL() string {
 		buf.WriteString(" ORDER BY ")
 		buf.WriteString(o.order)
 	}
-	if o.QueryFirst {
+	if o.Key == o.table {
 		buf.WriteString(" LIMIT 1")
 	} else if o.withPage {
 		buf.WriteString(" LIMIT ")

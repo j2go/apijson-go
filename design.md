@@ -83,3 +83,34 @@ error: 39:1: expected '}', found 0 (and 10 more errors)
 ```
 
 这个报错也太简略了，翻了一下源码，感觉短时间里搞不定，还是自己写一个吧，挖个坑之后填，先把 0.0.1 的功能完成
+
+# 一些问题
+
+在使用 Java 版的时候发现一个反直觉的点
+```json
+{
+    "User":{
+        "id": 93793
+    },
+    "[]": {
+        "page": 0,
+        "count": 3,
+        "Moment": {
+            "userId@": "User/id",
+            "@column": "id,content,userId"
+        },
+        "list[]": {
+            "count": 3,
+            "Comment": {
+                "momentId@": "[]/Moment/id"
+            },
+            "User": {
+                "id@": "/Comment/userId"
+            }
+        }
+    }
+}
+```
+上面  `"userId@": "User/id",` 查的是绝对路径，
+下面 `"id@": "/Comment/userId"` 查的却是相对路径，
+就 Linux 的使用习惯来说 `/` 在前表示的是绝对路径

@@ -70,13 +70,13 @@ func (c *SQLParseContext) getResponse() map[string]interface{} {
 			}
 		}
 	}
+	c.resp["code"] = http.StatusOK
 	c.resp["time"] = fmt.Sprintf("%dms|%v", (time.Now().Nanosecond()-startTime)/1000000, c.time)
 	return c.resp
 }
 
 func (c *SQLParseContext) parseSQLAndGetResponse(key string) {
 	startTime := time.Now().UnixNano()
-
 	c.waitKeys[key] = true
 	logger.Debugf("开始解析 %s", key)
 	if c.req[key] == nil {
@@ -86,26 +86,12 @@ func (c *SQLParseContext) parseSQLAndGetResponse(key string) {
 	if fieldMap, ok := c.req[key].(map[string]interface{}); !ok {
 		c.End(http.StatusBadRequest, "值类型不对，只支持 Object 类型")
 	} else {
-		parseObj := db.SQLParseObject{LoadFunc: c.queryResp}
-		if c.end {
-			return
-		}
-		if err := parseObj.From(key, fieldMap); err != nil {
-			c.End(http.StatusBadRequest, err.Error())
-			return
+		obj := &db.SQLParser{Key: key, LoadFunc: c.queryResponse, RequestMap: fieldMap}
+		value, err := obj.GetData()
+		if err != nil {
+			c.End(http.StatusInternalServerError, err.Error())
 		} else {
-			sql := parseObj.ToSQL()
-			logger.Debugf("解析 %s 执行SQL: %s %v", key, sql, parseObj.Values)
-			if parseObj.QueryFirst {
-				c.resp[key], err = db.QueryOne(sql, parseObj.Values...)
-			} else {
-				c.resp[key], err = db.QueryAll(sql, parseObj.Values...)
-			}
-			if err != nil {
-				c.End(http.StatusInternalServerError, err.Error())
-			} else {
-				c.resp["code"] = http.StatusOK
-			}
+			c.resp[key] = value
 		}
 	}
 	c.waitKeys[key] = false
@@ -113,7 +99,7 @@ func (c *SQLParseContext) parseSQLAndGetResponse(key string) {
 }
 
 // 查询已知结果
-func (c *SQLParseContext) queryResp(queryString string) interface{} {
+func (c *SQLParseContext) queryResponse(queryString string) interface{} {
 	var paths []string
 	qs := strings.TrimSpace(queryString)
 	if strings.HasPrefix(qs, "/") {
