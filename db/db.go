@@ -11,7 +11,10 @@ import (
 
 var db *sqlx.DB
 
-const dataSourceName = "root:123456@tcp(localhost:3306)/sys"
+const database = "sys"
+const dataSourceName = "root:123456@tcp(localhost:3306)/" + database
+const showTableSQL = "select TABLE_NAME from information_schema.tables where table_schema='" + database + "' and table_type='base table'"
+const accessAliasSQL = "select name,alias from Access where alias is not null"
 
 type TableMeta struct {
 	Name    string
@@ -27,6 +30,11 @@ type ColumnMeta struct {
 	Extra   sql.NullString `db:"Extra"`
 }
 
+type Access struct {
+	Name  string `db:"name"`
+	Alias string `db:"alias"`
+}
+
 var AllTable = make(map[string]TableMeta)
 
 func init() {
@@ -36,7 +44,7 @@ func init() {
 		log.Fatal("db connect error", err)
 	}
 	logger.Info("LoadTableMeta START")
-	if rows, err := db.Query("show tables"); err != nil {
+	if rows, err := db.Query(showTableSQL); err != nil {
 		log.Fatal("db Query error", err)
 	} else {
 		for rows.Next() {
@@ -45,6 +53,17 @@ func init() {
 			AllTable[name] = TableMeta{Name: name, Columns: loadColumnMeta(name)}
 		}
 		logger.Infof("LoadTableMeta END, Table size: %d", len(AllTable))
+	}
+	if _, exists := AllTable["Access"]; exists {
+		var accessList []Access
+		if err = db.Select(&accessList, accessAliasSQL); err != nil {
+			log.Fatal(err)
+		}
+		for _, a := range accessList {
+			AllTable[a.Alias] = AllTable[a.Name]
+			delete(AllTable, a.Name)
+			logger.Infof("scan Access, alias %s -> %s", a.Name, a.Alias)
+		}
 	}
 }
 

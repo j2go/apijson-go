@@ -14,7 +14,7 @@ func main() {
 	http.HandleFunc("/put", handler.PutHandler)
 	http.HandleFunc("/delete", handler.DeleteHandler)
 
-	addr := ":8000"
+	addr := ":8080"
 	logger.SetLevel(logger.DEBUG)
 	logger.Info("server listen on " + addr)
 	err := http.ListenAndServe(addr, nil)
