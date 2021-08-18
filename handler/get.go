@@ -23,7 +23,15 @@ func GetHandler(w http.ResponseWriter, r *http.Request) {
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	} else {
-		handleRequestJson(data, w)
+		logger.Infof("request: %s", string(data))
+		var bodyMap map[string]interface{}
+		if err := json.Unmarshal(data, &bodyMap); err != nil {
+			logger.Error("请求体 JSON 格式有问题: " + err.Error())
+			w.WriteHeader(http.StatusBadRequest)
+			return
+		}
+		cors(w)
+		NewQueryContext(bodyMap).response(w)
 	}
 }
 
@@ -32,18 +40,6 @@ func cors(w http.ResponseWriter) {
 	w.Header().Add("Access-Control-Allow-Credentials", "true")
 	w.Header().Add("Access-Control-Allow-Headers", "content-type")
 	w.Header().Add("Access-Control-Request-Method", "POST")
-}
-
-func handleRequestJson(data []byte, w http.ResponseWriter) {
-	cors(w)
-	logger.Infof("request: %s", string(data))
-	var bodyMap map[string]interface{}
-	if err := json.Unmarshal(data, &bodyMap); err != nil {
-		logger.Error("请求体 JSON 格式有问题: " + err.Error())
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	}
-	NewQueryContext(bodyMap).response(w)
 }
 
 type QueryContext struct {
@@ -237,7 +233,7 @@ func (c *QueryContext) response(w http.ResponseWriter) {
 	if c.err == nil {
 		c.doQuery()
 	}
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(c.code)
 	dataMap := make(map[string]interface{})
 	dataMap["code"] = c.code
 	if c.err != nil {
