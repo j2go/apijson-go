@@ -17,3 +17,42 @@ Content-Type: application/json
     "name": "TommyLemon"
   }
 }
+
+###
+
+POST 127.0.0.1:8000/get
+Content-Type: application/json
+
+{
+  "User[]": {
+    "User": {
+      "id{}":[38710,82001,70793]
+    }
+  }
+}
+
+###
+
+POST 127.0.0.1:8000/get
+Content-Type: application/json
+
+{
+  "User[]": {
+    "User": {
+      "id{}": "<38711"
+    }
+  }
+}
+
+###
+
+POST 127.0.0.1:8000/get
+Content-Type: application/json
+
+{
+  "User[]": {
+    "User": {
+      "id{}": ">70793,"
+    }
+  }
+}

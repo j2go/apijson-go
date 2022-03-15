@@ -2,20 +2,23 @@ package db
 
 import (
 	"database/sql"
-	"fmt"
 	_ "github.com/go-sql-driver/mysql"
 	"github.com/jmoiron/sqlx"
+	"github.com/keepfoo/apijson/logger"
 	"log"
 	"strings"
 )
 
 var db *sqlx.DB
 
-const dataSourceName = "root:123456@tcp(localhost:3306)/apijson"
+const database = "sys"
+const dataSourceName = "root:123456@tcp(localhost:3306)/" + database
+const showTableSQL = "select TABLE_NAME from information_schema.tables where table_schema='" + database + "' and table_type='base table'"
+const accessAliasSQL = "select name,alias from Access where alias is not null"
 
 type TableMeta struct {
 	Name    string
-	Columns []ColumnMeta
+	Columns map[string]ColumnMeta
 }
 
 type ColumnMeta struct {
@@ -27,7 +30,12 @@ type ColumnMeta struct {
 	Extra   sql.NullString `db:"Extra"`
 }
 
-var Tables []TableMeta
+type Access struct {
+	Name  string `db:"name"`
+	Alias string `db:"alias"`
+}
+
+var AllTable = make(map[string]TableMeta)
 
 func init() {
 	var err error
@@ -35,25 +43,44 @@ func init() {
 	if err != nil {
 		log.Fatal("db connect error", err)
 	}
-	if rows, err := db.Query("show tables"); err != nil {
+	logger.Info("LoadTableMeta START")
+	if rows, err := db.Query(showTableSQL); err != nil {
 		log.Fatal("db Query error", err)
 	} else {
 		for rows.Next() {
 			var name string
 			rows.Scan(&name)
-			Tables = append(Tables, TableMeta{Name: name, Columns: loadColumnMeta(name)})
+			AllTable[name] = TableMeta{Name: name, Columns: loadColumnMeta(name)}
+		}
+		logger.Infof("LoadTableMeta END, Table size: %d", len(AllTable))
+	}
+	if _, exists := AllTable["Access"]; exists {
+		var accessList []Access
+		if err = db.Select(&accessList, accessAliasSQL); err != nil {
+			log.Fatal(err)
+		}
+		for _, a := range accessList {
+			AllTable[a.Alias] = AllTable[a.Name]
+			delete(AllTable, a.Name)
+			logger.Infof("scan Access, alias %s -> %s", a.Name, a.Alias)
 		}
 	}
 }
 
-func loadColumnMeta(name string) []ColumnMeta {
+func loadColumnMeta(name string) map[string]ColumnMeta {
 	var columns []ColumnMeta
+	columnMap := make(map[string]ColumnMeta)
 	err := db.Select(&columns, "desc "+name)
 	if err != nil {
-		fmt.Println("exec failed, ", err)
+		return nil
 	}
-	log.Printf("table: %s, columns: %v", name, columns)
-	return columns
+	keys := make([]string, len(columns))
+	for i, c := range columns {
+		keys[i] = c.Field
+		columnMap[c.Field] = c
+	}
+	logger.Infof("LoadTableMeta %s [%s]", name, strings.Join(keys, ","))
+	return columnMap
 }
 
 func QueryOne(sql string, args ...interface{}) (map[string]interface{}, error) {

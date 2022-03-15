@@ -3,100 +3,114 @@ package db
 import (
 	"bytes"
 	"fmt"
+	"github.com/keepfoo/apijson/logger"
 	"strconv"
 	"strings"
 )
 
-type SQLParseObject struct {
-	LoadFunc   func(s string) interface{}
-	QueryFirst bool
-	Values     []interface{}
+const DefaultLimit = 1000
 
-	table    string
-	columns  []string
-	where    []string
-	order    string
-	limit    int
-	page     int
-	withPage bool
+type MysqlExecutor struct {
+	table   string
+	columns []string
+	where   []string
+	params  []interface{}
+	order   string
+	group   string
+	limit   int
+	page    int
 }
 
-func (o *SQLParseObject) From(key string, fieldMap map[string]interface{}) error {
-	if strings.HasSuffix(key, "[]") {
-		o.QueryFirst = false
-		return o.parseListQuery(fieldMap)
+func (e *MysqlExecutor) Table() string {
+	return e.table
+}
+
+func (e *MysqlExecutor) ParseTable(t string) error {
+	if strings.HasSuffix(t, "[]") {
+		t = t[0 : len(t)-2]
 	}
-	o.QueryFirst = true
-	return o.parseObject(key, fieldMap)
+	if _, exists := AllTable[t]; !exists {
+		return fmt.Errorf("table: %s not exists", e.table)
+	}
+	e.table = AllTable[t].Name
+	return nil
 }
 
-func (o *SQLParseObject) parseObject(key string, fieldMap map[string]interface{}) error {
-	o.table = key
-	for field, value := range fieldMap {
-		if value == nil {
-			return fmt.Errorf("field value error, %s is nil", field)
+func (e *MysqlExecutor) ToSQL() string {
+	var buf bytes.Buffer
+	buf.WriteString("SELECT ")
+	if e.columns == nil {
+		buf.WriteString("*")
+	} else {
+		buf.WriteString(strings.Join(e.columns, ","))
+	}
+	buf.WriteString(" FROM ")
+	buf.WriteString(e.table)
+	if len(e.where) > 0 {
+		buf.WriteString(" WHERE ")
+		buf.WriteString(strings.Join(e.where, " and "))
+	}
+	if e.order != "" {
+		buf.WriteString(" ORDER BY ")
+		buf.WriteString(e.order)
+	}
+	buf.WriteString(" LIMIT ")
+	buf.WriteString(strconv.Itoa(e.limit))
+	if e.limit > 1 {
+		buf.WriteString(" OFFSET ")
+		buf.WriteString(strconv.Itoa(e.limit * e.page))
+	}
+	return buf.String()
+}
+
+func (e *MysqlExecutor) ParseCondition(field string, value interface{}) {
+	if values, ok := value.([]interface{}); ok {
+		// 数组使用 IN 条件
+		condition := field + " in ("
+		for i, v := range values {
+			if i == 0 {
+				condition += "?"
+			} else {
+				condition += ",?"
+			}
+			e.params = append(e.params, v)
 		}
+		e.where = append(e.where, condition+")")
+	} else if valueStr, ok := value.(string); ok {
 		if strings.HasPrefix(field, "@") {
 			switch field[1:] {
 			case "order":
-				o.order = value.(string)
+				e.order = valueStr
 			case "column":
-				o.columns = strings.Split(value.(string), ",")
+				e.columns = strings.Split(valueStr, ",")
 			}
 		} else {
-			o.where = append(o.where, field+"=?")
-			// @ 结尾要去已查询的结果中找值
-			if strings.HasSuffix(field, "@") {
-				o.Values = append(o.Values, o.LoadFunc(value.(string)))
-			} else {
-				o.Values = append(o.Values, value)
-			}
+			e.where = append(e.where, field+"=?")
+			e.params = append(e.params, valueStr)
 		}
-	}
-	return nil
-}
-
-func (o *SQLParseObject) parseListQuery(fieldMap map[string]interface{}) error {
-	for field, value := range fieldMap {
-		if value == nil {
-			return fmt.Errorf("field value error, %s is nil", field)
-		}
-		switch field {
-		case "page":
-			o.page = int(value.(float64))
-		case "size":
-			o.limit = int(value.(float64))
-		default:
-			return o.parseObject(field, value.(map[string]interface{}))
-		}
-	}
-	o.withPage = o.page > 0 && o.limit > 0
-	return nil
-}
-
-func (o *SQLParseObject) ToSQL() string {
-	var buf bytes.Buffer
-	buf.WriteString("SELECT ")
-	if o.columns == nil {
-		buf.WriteString(" * ")
 	} else {
-		buf.WriteString(strings.Join(o.columns, ","))
+		e.where = append(e.where, field+"=?")
+		e.params = append(e.params, value)
 	}
-	buf.WriteString(" FROM ")
-	buf.WriteString(o.table)
-	buf.WriteString(" WHERE ")
-	buf.WriteString(strings.Join(o.where, " and "))
-	if o.order != "" {
-		buf.WriteString(" ORDER BY ")
-		buf.WriteString(o.order)
+}
+
+func (e *MysqlExecutor) Exec() ([]map[string]interface{}, error) {
+	sql := e.ToSQL()
+	logger.Debugf("exec %s, params: %v", sql, e.params)
+	return QueryAll(sql, e.params...)
+}
+
+func (e *MysqlExecutor) PageSize(page interface{}, count interface{}) {
+	e.page = parseNum(page, 0)
+	e.limit = parseNum(count, 10)
+}
+
+func parseNum(value interface{}, defaultVal int) int {
+	if n, ok := value.(float64); ok {
+		return int(n)
 	}
-	if o.QueryFirst {
-		buf.WriteString(" LIMIT 1")
-	} else if o.withPage {
-		buf.WriteString(" LIMIT ")
-		buf.WriteString(strconv.Itoa(o.limit))
-		buf.WriteString(" OFFSET ")
-		buf.WriteString(strconv.Itoa(o.limit * (o.page - 1)))
+	if n, ok := value.(int); ok {
+		return n
 	}
-	return buf.String()
+	return defaultVal
 }
