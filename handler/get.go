@@ -3,8 +3,8 @@ package handler
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/keepfoo/apijson/db"
-	"github.com/keepfoo/apijson/logger"
+	"github.com/j2go/apijson/db"
+	"github.com/j2go/apijson/logger"
 	"io/ioutil"
 	"net/http"
 	"strings"
@@ -36,7 +36,7 @@ func GetHandler(w http.ResponseWriter, r *http.Request) {
 }
 
 func cors(w http.ResponseWriter) {
-	w.Header().Add("Access-Control-Allow-Origin", "http://apijson.cn")
+	w.Header().Add("Access-Control-Allow-Origin", "http://apijson.cn/")
 	w.Header().Add("Access-Control-Allow-Credentials", "true")
 	w.Header().Add("Access-Control-Allow-Headers", "content-type")
 	w.Header().Add("Access-Control-Request-Method", "POST")

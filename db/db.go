@@ -3,17 +3,14 @@ package db
 import (
 	"database/sql"
 	_ "github.com/go-sql-driver/mysql"
+	"github.com/j2go/apijson/logger"
 	"github.com/jmoiron/sqlx"
-	"github.com/keepfoo/apijson/logger"
 	"log"
 	"strings"
 )
 
 var db *sqlx.DB
 
-const database = "sys"
-const dataSourceName = "root:123456@tcp(localhost:3306)/" + database
-const showTableSQL = "select TABLE_NAME from information_schema.tables where table_schema='" + database + "' and table_type='base table'"
 const accessAliasSQL = "select name,alias from Access where alias is not null"
 
 type TableMeta struct {
@@ -37,7 +34,10 @@ type Access struct {
 
 var AllTable = make(map[string]TableMeta)
 
-func init() {
+func Init(database string, dataSource string) {
+	dataSourceName := dataSource + "/" + database
+	showTableSQL := "select TABLE_NAME from information_schema.tables where table_schema='" + database + "' and table_type='BASE TABLE'"
+
 	var err error
 	db, err = sqlx.Open("mysql", dataSourceName)
 	if err != nil {
