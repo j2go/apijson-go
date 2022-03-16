@@ -1,13 +1,15 @@
 package main
 
 import (
-	"github.com/keepfoo/apijson/handler"
-	"github.com/keepfoo/apijson/logger"
+	"github.com/j2go/apijson/db"
+	"github.com/j2go/apijson/handler"
+	"github.com/j2go/apijson/logger"
 	"log"
 	"net/http"
 )
 
 func main() {
+	db.Init("apijson", "root:1234qwer@tcp(localhost:3306)")
 	http.HandleFunc("/head", handler.HeadHandler)
 	http.HandleFunc("/get", handler.GetHandler)
 	http.HandleFunc("/post", handler.PostHandler)

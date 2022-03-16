@@ -31,7 +31,13 @@
 
 1. 解析请求，转换 json 数据到 ``
 
-# 开发测试
+# 开发指南
+0. go version > 1.6
+1. 准备数据库
 ```shell
-╰─$ docker run -d -p3306:3306 --name mysql -e MARIADB_ROOT_PASSWORD=123456  mariadb
+docker run -d -p3306:3306 --name mysql -e MYSQL_ROOT_PASSWORD=1234qwer  mysql:8
 ```
+2. 创建数据库
+3. 导入 [SQL](https://gitee.com/tomyang1898/APIJSON-Demo/blob/master/MySQL/sys.sql)
+4. 根据数据库参数修改 main.go 的 db.Init 参数
+5. 运行 `go run main.go`

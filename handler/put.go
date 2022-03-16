@@ -1,7 +1,7 @@
 package handler
 
 import (
-	"github.com/keepfoo/apijson/logger"
+	"github.com/j2go/apijson/logger"
 	"net/http"
 )
 

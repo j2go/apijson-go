@@ -1,4 +1,4 @@
-module github.com/keepfoo/apijson
+module github.com/j2go/apijson
 
 go 1.16
 

@@ -3,7 +3,7 @@ package db
 import (
 	"bytes"
 	"fmt"
-	"github.com/keepfoo/apijson/logger"
+	"github.com/j2go/apijson/logger"
 	"strconv"
 	"strings"
 )
