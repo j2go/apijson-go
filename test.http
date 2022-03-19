@@ -1,4 +1,4 @@
-POST 127.0.0.1:8000/get
+POST 127.0.0.1:8080/get
 Content-Type: application/json
 
 {
@@ -9,7 +9,7 @@ Content-Type: application/json
 
 ###
 
-POST 127.0.0.1:8000/get
+POST 127.0.0.1:8080/get
 Content-Type: application/json
 
 {
@@ -20,7 +20,7 @@ Content-Type: application/json
 
 ###
 
-POST 127.0.0.1:8000/get
+POST 127.0.0.1:8080/get
 Content-Type: application/json
 
 {
@@ -33,7 +33,7 @@ Content-Type: application/json
 
 ###
 
-POST 127.0.0.1:8000/get
+POST 127.0.0.1:8080/get
 Content-Type: application/json
 
 {
@@ -46,7 +46,7 @@ Content-Type: application/json
 
 ###
 
-POST 127.0.0.1:8000/get
+POST 127.0.0.1:8080/get
 Content-Type: application/json
 
 {
@@ -55,4 +55,20 @@ Content-Type: application/json
       "id{}": ">70793,"
     }
   }
+}
+
+
+### 添加一条记录
+
+POST 127.0.0.1:8080/post
+Content-Type: application/json
+
+{
+  "Comment":{
+    "id": 116136422088499,
+    "userId": 82012,
+    "momentId":12,
+    "content":"APIJSON,let interfaces and documents go to hell !"
+  },
+  "tag":"Comment"
 }
