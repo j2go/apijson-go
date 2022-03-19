@@ -8,7 +8,7 @@ import (
 	"strings"
 )
 
-// 暂时支持单条数据插入
+// PostHandler 暂时仅支持单条数据插入
 func PostHandler(w http.ResponseWriter, r *http.Request) {
 	commonHandle(w, r, postDataHandler)
 }
