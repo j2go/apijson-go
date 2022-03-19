@@ -1,45 +1,24 @@
 package handler
 
 import (
-	"encoding/json"
 	"fmt"
 	"github.com/j2go/apijson/db"
 	"github.com/j2go/apijson/logger"
-	"io/ioutil"
 	"net/http"
 	"strings"
 	"time"
 )
 
 func GetHandler(w http.ResponseWriter, r *http.Request) {
-	if r.Method == http.MethodOptions {
-		//logger.Infof("%v", r.Header)
-		cors(w)
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-	if data, err := ioutil.ReadAll(r.Body); err != nil {
-		logger.Error("请求参数有问题: " + err.Error())
-		w.WriteHeader(http.StatusBadRequest)
-		return
-	} else {
-		logger.Infof("request: %s", string(data))
-		var bodyMap map[string]interface{}
-		if err := json.Unmarshal(data, &bodyMap); err != nil {
-			logger.Error("请求体 JSON 格式有问题: " + err.Error())
-			w.WriteHeader(http.StatusBadRequest)
-			return
+	commonHandle(w, r, func(bodyMap map[string]interface{}) map[string]interface{} {
+		ctx := &QueryContext{
+			code:        http.StatusOK,
+			req:         bodyMap,
+			nodeTree:    make(map[string]*QueryNode),
+			nodePathMap: make(map[string]*QueryNode),
 		}
-		cors(w)
-		NewQueryContext(bodyMap).response(w)
-	}
-}
-
-func cors(w http.ResponseWriter) {
-	w.Header().Add("Access-Control-Allow-Origin", "http://apijson.cn/")
-	w.Header().Add("Access-Control-Allow-Credentials", "true")
-	w.Header().Add("Access-Control-Allow-Headers", "content-type")
-	w.Header().Add("Access-Control-Request-Method", "POST")
+		return ctx.response()
+	})
 }
 
 type QueryContext struct {
@@ -219,39 +198,22 @@ func (n *QueryNode) doQueryData() {
 	}
 }
 
-func NewQueryContext(bodyMap map[string]interface{}) *QueryContext {
-	return &QueryContext{
-		code:        http.StatusOK,
-		req:         bodyMap,
-		nodeTree:    make(map[string]*QueryNode),
-		nodePathMap: make(map[string]*QueryNode),
-	}
-}
-
-func (c *QueryContext) response(w http.ResponseWriter) {
+func (c *QueryContext) response() map[string]interface{} {
 	c.doParse()
 	if c.err == nil {
 		c.doQuery()
 	}
-	w.WriteHeader(c.code)
-	dataMap := make(map[string]interface{})
-	dataMap["code"] = c.code
+	resultMap := make(map[string]interface{})
+	resultMap["code"] = c.code
 	if c.err != nil {
-		dataMap["message"] = c.err.Error()
+		resultMap["message"] = c.err.Error()
 	} else {
 		for k, v := range c.nodeTree {
 			//logger.Debugf("response.nodeMap K: %s, V: %v", k, v)
-			dataMap[k] = v.Result()
+			resultMap[k] = v.Result()
 		}
 	}
-	if respBody, err := json.Marshal(dataMap); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-	} else {
-		//logger.Debugf("返回数据 %s", string(respBody))
-		if _, err = w.Write(respBody); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-		}
-	}
+	return resultMap
 }
 
 func (c *QueryContext) doParse() {

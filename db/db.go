@@ -155,3 +155,16 @@ func QueryAll(sql string, args ...interface{}) ([]map[string]interface{}, error)
 	}
 	return tableData, nil
 }
+
+func Insert(sql string, args ...interface{}) (int64, error) {
+	r, err := db.Exec(sql, args...)
+	if err != nil {
+		return -1, err
+	}
+	var id int64
+	id, err = r.LastInsertId()
+	if err != nil {
+		return -1, err
+	}
+	return id, nil
+}
