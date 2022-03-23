@@ -72,3 +72,17 @@ Content-Type: application/json
   },
   "tag":"Comment"
 }
+
+### 更新一条记录
+
+POST 127.0.0.1:8080/put
+Content-Type: application/json
+
+{
+  "Comment":{
+    "id": 301,
+    "content":"put is ok",
+    "toId": 97
+  },
+  "tag":"Comment"
+}
