@@ -168,3 +168,11 @@ func Insert(sql string, args ...interface{}) (int64, error) {
 	}
 	return id, nil
 }
+
+func Update(sql string, args ...interface{}) error {
+	_, err := db.Exec(sql, args...)
+	if err != nil {
+		return err
+	}
+	return nil
+}
