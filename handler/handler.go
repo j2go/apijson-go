@@ -1,6 +1,7 @@
 package handler
 
 import (
+	"bytes"
 	"encoding/json"
 	"github.com/j2go/apijson/logger"
 	"io/ioutil"
@@ -47,4 +48,17 @@ func cors(w http.ResponseWriter) {
 	w.Header().Add("Access-Control-Allow-Credentials", "true")
 	w.Header().Add("Access-Control-Allow-Headers", "content-type")
 	w.Header().Add("Access-Control-Request-Method", "POST")
+}
+
+func genPlaceholder(n int) string {
+	if n == 1 {
+		return "?"
+	} else {
+		buf := bytes.Buffer{}
+		buf.WriteString("?")
+		for i := 1; i < n; i++ {
+			buf.WriteString(",?")
+		}
+		return buf.String()
+	}
 }

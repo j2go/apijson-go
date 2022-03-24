@@ -86,3 +86,25 @@ Content-Type: application/json
   },
   "tag":"Comment"
 }
+
+### 删除一条记录
+
+POST 127.0.0.1:8080/delete
+Content-Type: application/json
+
+{
+  "Comment":{
+    "id": 209
+  }
+}
+
+### 删除多条记录
+
+POST 127.0.0.1:8080/delete
+Content-Type: application/json
+
+{
+  "Comment":{
+    "id{}": [300, 301, 4001]
+  }
+}

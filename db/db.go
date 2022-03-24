@@ -176,3 +176,16 @@ func Update(sql string, args ...interface{}) error {
 	}
 	return nil
 }
+
+func Delete(sql string, args ...interface{}) (int64, error) {
+	if r, err := db.Exec(sql, args...); err != nil {
+		return 0, err
+	} else {
+		var rows int64
+		if rows, err = r.RowsAffected(); err != nil {
+			return 0, err
+		} else {
+			return rows, nil
+		}
+	}
+}
