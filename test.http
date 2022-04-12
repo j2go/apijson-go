@@ -14,7 +14,7 @@ Content-Type: application/json
 
 {
   "document": {
-    "name": "TommyLemon"
+    "id{}": ">1"
   }
 }
 
