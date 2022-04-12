@@ -204,9 +204,10 @@ func (c *QueryContext) response() map[string]interface{} {
 		c.doQuery()
 	}
 	resultMap := make(map[string]interface{})
+	resultMap["ok"] = c.code == http.StatusOK
 	resultMap["code"] = c.code
 	if c.err != nil {
-		resultMap["message"] = c.err.Error()
+		resultMap["msg"] = c.err.Error()
 	} else {
 		for k, v := range c.nodeTree {
 			//logger.Debugf("response.nodeMap K: %s, V: %v", k, v)
