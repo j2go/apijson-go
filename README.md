@@ -31,7 +31,7 @@
 
 # 开发指南
 
-0. go version > 1.16
+0. go version >= 1.13
 1. 准备数据库
 
 ```shell
@@ -42,3 +42,4 @@ docker run -d -p3306:3306 --name mysql -e MYSQL_ROOT_PASSWORD=1234qwer  mysql:8
 3. 根据数据库参数修改 main.go 的 db.Init 参数
 4. 运行 `go run main.go`
 5. HTTP 数据测试可以看根目录的 [test.http](https://gitee.com/tiangao/apijson-go/blob/master/test.http)
+6. 或者使用 APIAuto 测试更方便 [APIAuto](https://github.com/TommyLemon/APIAuto)
