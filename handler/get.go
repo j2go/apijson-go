@@ -151,6 +151,7 @@ func (n *QueryNode) Result() interface{} {
 	}
 	return nil
 }
+
 func (n *QueryNode) doQueryData() {
 	if n.completed {
 		return
@@ -257,7 +258,7 @@ func (c *QueryContext) parseByKey(key string) {
 func NewQueryNode(c *QueryContext, path, key string, queryMap map[string]interface{}) *QueryNode {
 	n := &QueryNode{
 		ctx:         c,
-		Key:         key,
+		Key:         strings.ToLower(key),
 		Path:        path,
 		RequestMap:  queryMap,
 		start:       time.Now().UnixNano(),

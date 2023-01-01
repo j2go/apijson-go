@@ -4,7 +4,7 @@ import (
 	"bytes"
 	"encoding/json"
 	"github.com/j2go/apijson/logger"
-	"io/ioutil"
+	"io"
 	"net/http"
 )
 
@@ -15,14 +15,14 @@ func commonHandle(w http.ResponseWriter, r *http.Request, bodyHandler func(map[s
 		w.WriteHeader(http.StatusOK)
 		return
 	}
-	if data, err := ioutil.ReadAll(r.Body); err != nil {
+	if requestBody, err := io.ReadAll(r.Body); err != nil {
 		logger.Error("请求参数有问题: " + err.Error())
 		w.WriteHeader(http.StatusBadRequest)
 		return
 	} else {
-		logger.Infof("request: %s", string(data))
+		logger.Infof("request: %s", string(requestBody))
 		var bodyMap map[string]interface{}
-		if err = json.Unmarshal(data, &bodyMap); err != nil {
+		if err = json.Unmarshal(requestBody, &bodyMap); err != nil {
 			logger.Error("请求体 JSON 格式有问题: " + err.Error())
 			w.WriteHeader(http.StatusBadRequest)
 			return
