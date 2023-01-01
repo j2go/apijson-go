@@ -50,6 +50,7 @@ func Init(database string, dataSource string) {
 		for rows.Next() {
 			var name string
 			rows.Scan(&name)
+			name = strings.ToLower(name)
 			AllTable[name] = TableMeta{Name: name, Columns: loadColumnMeta(name)}
 		}
 		logger.Infof("LoadTableMeta END, Table size: %d", len(AllTable))
